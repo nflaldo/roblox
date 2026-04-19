@@ -1,15 +1,23 @@
--- Script: Dance Party - Animasi Gratis 100%
+-- Script: FIXED - Walk, Jump & Emote
 -- Jalankan via Executor (LocalScript)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local AnimateScript = nil
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 local animator = humanoid:WaitForChild("Animator")
+
+-- ===== PERBAIKAN ANIMASI BERJALAN =====
+-- Aktifkan kembali script Animate bawaan Roblox
+AnimateScript = character:FindFirstChild("Animate")
+if AnimateScript then
+    AnimateScript.Disabled = false
+end
 
 -- ===== PENGATURAN =====
 local Settings = {
@@ -21,7 +29,7 @@ local Settings = {
     BrightVision = true,
 }
 
--- ===== ANIMASI GRATIS ROBLOX DEFAULT =====
+-- ===== ANIMASI GRATIS 100% =====
 local emotes = {
     {name = "Dance 1",      id = "rbxassetid://507771019"},
     {name = "Dance 2",      id = "rbxassetid://507776043"},
@@ -46,22 +54,71 @@ local emotes = {
 -- ===== FUNGSI PLAY EMOTE =====
 local currentTrack = nil
 local lastIndex = 0
+local isEmoting = false
 
-local function playEmote(emoteData)
+local function stopEmote()
     if currentTrack then
-        currentTrack:Stop()
+        currentTrack:Stop(0.2)
         currentTrack = nil
     end
+    isEmoting = false
+
+    -- Pulihkan animasi jalan & lompat
+    if AnimateScript then
+        AnimateScript.Disabled = false
+    end
+    humanoid.WalkSpeed = Settings.WalkSpeed
+    humanoid.JumpPower = Settings.JumpPower
+    print("⏹ Emote berhenti - bisa jalan & lompat lagi!")
+end
+
+local function playEmote(emoteData)
+    -- Stop emote sebelumnya
+    stopEmote()
+    isEmoting = true
 
     local anim = Instance.new("Animation")
     anim.AnimationId = emoteData.id
 
-    local track = animator:LoadAnimation(anim)
-    track.Priority = Enum.AnimationPriority.Action
-    track:Play()
+    local success, track = pcall(function()
+        return animator:LoadAnimation(anim)
+    end)
+
+    if not success then
+        print("❌ Gagal load: " .. emoteData.name)
+        isEmoting = false
+        return
+    end
+
+    -- Pakai Movement priority agar tidak konflik dengan walk/jump
+    track.Priority = Enum.AnimationPriority.Action2
+    track:Play(0.2)
     currentTrack = track
 
-    print("🎭 Dance: " .. emoteData.name)
+    -- Auto stop emote saat karakter bergerak
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not isEmoting then
+            connection:Disconnect()
+            return
+        end
+        local velocity = humanoidRootPart.Velocity
+        local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+        if speed > 1 then
+            stopEmote()
+            connection:Disconnect()
+        end
+    end)
+
+    -- Auto stop saat animasi selesai
+    track.Stopped:Connect(function()
+        if isEmoting then
+            isEmoting = false
+            currentTrack = nil
+        end
+    end)
+
+    print("🎭 Emote: " .. emoteData.name)
 end
 
 local function playRandomEmote()
@@ -97,15 +154,14 @@ local function toggleAutoDance()
         print("🎵 Auto Dance ON!")
         task.spawn(function()
             while autoDance do
-                playRandomEmote()
-                task.wait(5)
+                if not isEmoting then
+                    playRandomEmote()
+                end
+                task.wait(6)
             end
         end)
     else
-        if currentTrack then
-            currentTrack:Stop()
-            currentTrack = nil
-        end
+        stopEmote()
         print("⏹ Auto Dance OFF")
     end
 end
@@ -127,6 +183,7 @@ print("✅ Walk & Jump aktif!")
 -- ===== 2. INFINITE JUMP =====
 if Settings.InfiniteJump then
     UserInputService.JumpRequest:Connect(function()
+        if isEmoting then stopEmote() end
         humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end)
     print("✅ Infinite Jump aktif!")
@@ -149,11 +206,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 
     if input.KeyCode == Enum.KeyCode.F then
-        if currentTrack then
-            currentTrack:Stop()
-            currentTrack = nil
-            print("⏹ Dance dihentikan")
-        end
+        stopEmote()
     end
 
     if input.KeyCode == Enum.KeyCode.G then

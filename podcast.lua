@@ -1,10 +1,11 @@
--- Dance Party UI - Simple Toggle Fix
+-- Dance Party UI - FULL FIX
 -- Jalankan via Executor (LocalScript)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -14,7 +15,15 @@ local animator = humanoid:WaitForChild("Animator")
 local AnimateScript = character:FindFirstChild("Animate")
 if AnimateScript then AnimateScript.Disabled = false end
 
-local Settings = { WalkSpeed = 24, JumpPower = 60, NoClip = false, AutoDance = false }
+local Settings = {
+    WalkSpeed = 24,
+    JumpPower = 60,
+    NoClip = false,
+    AutoDance = false,
+    BrightVision = false,
+    InfiniteJump = true,
+    Sprint = true,
+}
 
 local emotes = {
     {name = "Dance 1",    icon = "💃", id = "rbxassetid://507771019"},
@@ -35,37 +44,108 @@ local emotes = {
     {name = "Applaud",    icon = "👏", id = "rbxassetid://5915693785"},
 }
 
--- Emote system
-local currentTrack, isEmoting = nil, false
+-- ===== EMOTE SYSTEM FIXED =====
+local currentTrack = nil
+local isEmoting = false
+local heartbeatConn = nil
 
 local function stopEmote()
-    if currentTrack then currentTrack:Stop(0.2) currentTrack = nil end
+    -- Stop heartbeat dulu
+    if heartbeatConn then
+        heartbeatConn:Disconnect()
+        heartbeatConn = nil
+    end
+    -- Stop animasi
+    if currentTrack then
+        pcall(function() currentTrack:Stop(0.1) end)
+        currentTrack = nil
+    end
     isEmoting = false
-    if AnimateScript then AnimateScript.Disabled = false end
+    -- Restore animate script
+    if AnimateScript then
+        AnimateScript.Disabled = false
+    end
+    -- Restore speed
     humanoid.WalkSpeed = Settings.WalkSpeed
     humanoid.JumpPower = Settings.JumpPower
+    print("⏹ Dance berhenti")
 end
 
 local function playEmote(e)
-    stopEmote(); isEmoting = true
+    -- Selalu stop dulu sebelum play baru
+    stopEmote()
+    task.wait(0.1)
+
     local anim = Instance.new("Animation")
     anim.AnimationId = e.id
-    local ok, track = pcall(function() return animator:LoadAnimation(anim) end)
-    if not ok then isEmoting = false return end
-    track.Priority = Enum.AnimationPriority.Action2
-    track:Play(0.2); currentTrack = track
-    track.Stopped:Connect(function() isEmoting = false currentTrack = nil end)
-    local c; c = RunService.Heartbeat:Connect(function()
-        if not isEmoting then c:Disconnect() return end
-        local v = humanoidRootPart.Velocity
-        if Vector3.new(v.X,0,v.Z).Magnitude > 1 then stopEmote() c:Disconnect() end
+
+    local ok, track = pcall(function()
+        return animator:LoadAnimation(anim)
     end)
-    print("🎭 "..e.name)
+
+    if not ok or not track then
+        print("❌ Gagal load: " .. e.name)
+        return
+    end
+
+    track.Priority = Enum.AnimationPriority.Action2
+    track:Play(0.1)
+    currentTrack = track
+    isEmoting = true
+
+    track.Stopped:Connect(function()
+        if currentTrack == track then
+            currentTrack = nil
+            isEmoting = false
+        end
+    end)
+
+    -- Stop otomatis saat jalan
+    heartbeatConn = RunService.Heartbeat:Connect(function()
+        if not isEmoting then
+            if heartbeatConn then heartbeatConn:Disconnect() heartbeatConn = nil end
+            return
+        end
+        local vel = humanoidRootPart.Velocity
+        if Vector3.new(vel.X, 0, vel.Z).Magnitude > 2 then
+            stopEmote()
+        end
+    end)
+
+    print("🎭 " .. e.name)
 end
 
-local function playRandom() playEmote(emotes[math.random(1,#emotes)]) end
+local function playRandom()
+    local idx = math.random(1, #emotes)
+    playEmote(emotes[idx])
+end
 
--- Setup karakter
+-- ===== AUTO DANCE FIXED =====
+local autoDanceThread = nil
+
+local function startAutoDance()
+    Settings.AutoDance = true
+    if autoDanceThread then task.cancel(autoDanceThread) end
+    autoDanceThread = task.spawn(function()
+        while Settings.AutoDance do
+            playRandom()
+            task.wait(7)
+        end
+    end)
+    print("🎵 Auto Dance ON")
+end
+
+local function stopAutoDance()
+    Settings.AutoDance = false
+    if autoDanceThread then
+        task.cancel(autoDanceThread)
+        autoDanceThread = nil
+    end
+    stopEmote()
+    print("⏹ Auto Dance OFF")
+end
+
+-- ===== KARAKTER SETUP =====
 humanoid.WalkSpeed = Settings.WalkSpeed
 humanoid.JumpPower = Settings.JumpPower
 humanoid.PlatformStand = false
@@ -74,30 +154,39 @@ humanoidRootPart.Anchored = false
 for _, p in pairs(character:GetDescendants()) do
     if p:IsA("BasePart") then p.Anchored = false end
 end
+
+-- Infinite Jump
 UserInputService.JumpRequest:Connect(function()
+    if not Settings.InfiniteJump then return end
     if isEmoting then stopEmote() end
     humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 end)
+
+-- Anti AFK
 local VU = game:GetService("VirtualUser")
 player.Idled:Connect(function()
     VU:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
     task.wait(1)
     VU:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
 end)
+
+-- NoClip
 RunService.Stepped:Connect(function()
     if Settings.NoClip then
         for _, p in pairs(character:GetDescendants()) do
-            if p:IsA("BasePart") and p ~= humanoidRootPart then p.CanCollide = false end
+            if p:IsA("BasePart") and p ~= humanoidRootPart then
+                p.CanCollide = false
+            end
         end
     end
 end)
 
--- Hapus GUI lama
+-- ===== HAPUS GUI LAMA =====
 if player.PlayerGui:FindFirstChild("DanceUI") then
     player.PlayerGui:FindFirstChild("DanceUI"):Destroy()
 end
 
--- Buat GUI
+-- ===== BUAT GUI =====
 local gui = Instance.new("ScreenGui")
 gui.Name = "DanceUI"
 gui.ResetOnSpawn = false
@@ -105,7 +194,7 @@ gui.DisplayOrder = 999
 gui.IgnoreGuiInset = true
 gui.Parent = player.PlayerGui
 
--- ICON BUTTON
+-- ICON
 local iconBtn = Instance.new("TextButton")
 iconBtn.Size = UDim2.new(0, 55, 0, 55)
 iconBtn.Position = UDim2.new(0, 16, 0.5, -27)
@@ -124,15 +213,17 @@ iconStroke.Thickness = 2
 
 -- PANEL
 local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 300, 0, 450)
-panel.Position = UDim2.new(0, 82, 0.5, -225)
+panel.Size = UDim2.new(0, 300, 0, 460)
+panel.Position = UDim2.new(0, 82, 0.5, -230)
 panel.BackgroundColor3 = Color3.fromRGB(15, 12, 28)
 panel.BorderSizePixel = 0
 panel.Visible = false
 panel.ZIndex = 99
 panel.Parent = gui
 Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 14)
-Instance.new("UIStroke", panel).Color = Color3.fromRGB(140, 80, 255)
+local ps = Instance.new("UIStroke", panel)
+ps.Color = Color3.fromRGB(140, 80, 255)
+ps.Thickness = 2
 
 -- Header
 local header = Instance.new("Frame")
@@ -155,7 +246,6 @@ titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 titleLbl.ZIndex = 101
 titleLbl.Parent = header
 
--- Tombol X close di header
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 28, 0, 28)
 closeBtn.Position = UDim2.new(1, -36, 0.5, -14)
@@ -201,13 +291,13 @@ local tabI = makeTab("📋 Info", 0.666)
 
 -- Content area
 local contentArea = Instance.new("Frame")
-contentArea.Size = UDim2.new(1, -14, 0, 305)
+contentArea.Size = UDim2.new(1, -14, 0, 310)
 contentArea.Position = UDim2.new(0, 7, 0, 86)
 contentArea.BackgroundTransparency = 1
 contentArea.ZIndex = 100
 contentArea.Parent = panel
 
--- Emote scroll
+-- ===== EMOTE SCROLL =====
 local emoteScroll = Instance.new("ScrollingFrame")
 emoteScroll.Size = UDim2.new(1, 0, 1, 0)
 emoteScroll.BackgroundTransparency = 1
@@ -217,11 +307,15 @@ emoteScroll.ScrollBarImageColor3 = Color3.fromRGB(140, 80, 255)
 emoteScroll.ZIndex = 101
 emoteScroll.Visible = true
 emoteScroll.Parent = contentArea
+
 local grid = Instance.new("UIGridLayout", emoteScroll)
 grid.CellSize = UDim2.new(0, 126, 0, 50)
 grid.CellPadding = UDim2.new(0, 5, 0, 5)
 grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 Instance.new("UIPadding", emoteScroll).PaddingTop = UDim.new(0, 4)
+
+local activeCard = nil
+local activeStroke = nil
 
 for _, emote in ipairs(emotes) do
     local card = Instance.new("TextButton")
@@ -232,7 +326,9 @@ for _, emote in ipairs(emotes) do
     card.ZIndex = 102
     card.Parent = emoteScroll
     Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
-    Instance.new("UIStroke", card).Color = Color3.fromRGB(70, 45, 120)
+    local cs = Instance.new("UIStroke", card)
+    cs.Color = Color3.fromRGB(70, 45, 120)
+    cs.Thickness = 1
 
     local ico = Instance.new("TextLabel")
     ico.Size = UDim2.new(0, 24, 1, 0)
@@ -257,21 +353,35 @@ for _, emote in ipairs(emotes) do
     nm.Parent = card
 
     card.MouseButton1Click:Connect(function()
+        -- Reset card sebelumnya
+        if activeCard and activeCard ~= card then
+            TweenService:Create(activeCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
+            if activeStroke then activeStroke.Color = Color3.fromRGB(70,45,120) end
+        end
+        -- Highlight card aktif
+        activeCard = card
+        activeStroke = cs
+        TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(70,35,120)}):Play()
+        cs.Color = Color3.fromRGB(160, 100, 255)
+        -- Play emote
         playEmote(emote)
-        TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(80,40,140)}):Play()
-        task.wait(0.15)
-        TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
     end)
+
     card.MouseEnter:Connect(function()
-        TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(42,30,70)}):Play()
+        if activeCard ~= card then
+            TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(42,30,70)}):Play()
+        end
     end)
     card.MouseLeave:Connect(function()
-        TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
+        if activeCard ~= card then
+            TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
+        end
     end)
 end
+
 emoteScroll.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#emotes/2) * 55 + 10)
 
--- Fitur frame
+-- ===== FITUR FRAME FIXED =====
 local fiturFrame = Instance.new("Frame")
 fiturFrame.Size = UDim2.new(1, 0, 1, 0)
 fiturFrame.BackgroundTransparency = 1
@@ -279,17 +389,9 @@ fiturFrame.Visible = false
 fiturFrame.ZIndex = 101
 fiturFrame.Parent = contentArea
 local fl = Instance.new("UIListLayout", fiturFrame)
-fl.Padding = UDim.new(0, 6)
+fl.Padding = UDim.new(0, 5)
 
-local fiturList = {
-    {name = "⚡ Infinite Jump", key = "InfiniteJump", on = true},
-    {name = "👻 NoClip",        key = "NoClip",        on = false},
-    {name = "💡 Bright Vision", key = "BrightVision",  on = true},
-    {name = "🎵 Auto Dance",    key = "AutoDance",      on = false},
-    {name = "🏃 Sprint (Shift)",key = "Sprint",         on = true},
-}
-
-for _, f in ipairs(fiturList) do
+local function makeToggleRow(labelText, defaultOn, onToggle)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 42)
     row.BackgroundColor3 = Color3.fromRGB(24, 18, 42)
@@ -302,7 +404,7 @@ for _, f in ipairs(fiturList) do
     lbl.Size = UDim2.new(1, -62, 1, 0)
     lbl.Position = UDim2.new(0, 10, 0, 0)
     lbl.BackgroundTransparency = 1
-    lbl.Text = f.name
+    lbl.Text = labelText
     lbl.TextColor3 = Color3.fromRGB(210,190,255)
     lbl.TextSize = 12
     lbl.Font = Enum.Font.GothamBold
@@ -313,7 +415,7 @@ for _, f in ipairs(fiturList) do
     local bg = Instance.new("Frame")
     bg.Size = UDim2.new(0, 38, 0, 20)
     bg.Position = UDim2.new(1, -46, 0.5, -10)
-    bg.BackgroundColor3 = f.on and Color3.fromRGB(120,60,220) or Color3.fromRGB(55,45,75)
+    bg.BackgroundColor3 = defaultOn and Color3.fromRGB(120,60,220) or Color3.fromRGB(55,45,75)
     bg.BorderSizePixel = 0
     bg.ZIndex = 103
     bg.Parent = row
@@ -321,14 +423,15 @@ for _, f in ipairs(fiturList) do
 
     local circle = Instance.new("Frame")
     circle.Size = UDim2.new(0, 14, 0, 14)
-    circle.Position = f.on and UDim2.new(1,-17,0.5,-7) or UDim2.new(0,3,0.5,-7)
+    circle.Position = defaultOn and UDim2.new(1,-17,0.5,-7) or UDim2.new(0,3,0.5,-7)
     circle.BackgroundColor3 = Color3.fromRGB(255,255,255)
     circle.BorderSizePixel = 0
     circle.ZIndex = 104
     circle.Parent = bg
     Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 
-    local state = {on = f.on}
+    local state = {on = defaultOn}
+
     local ca = Instance.new("TextButton")
     ca.Size = UDim2.new(1,0,1,0)
     ca.BackgroundTransparency = 1
@@ -345,39 +448,67 @@ for _, f in ipairs(fiturList) do
         TweenService:Create(circle, TweenInfo.new(0.2), {
             Position = on and UDim2.new(1,-17,0.5,-7) or UDim2.new(0,3,0.5,-7)
         }):Play()
-        if f.key == "NoClip" then Settings.NoClip = on
-        elseif f.key == "BrightVision" then
-            local L = game:GetService("Lighting")
-            if on then L.Brightness=5 L.ClockTime=14 L.FogEnd=100000 L.GlobalShadows=false
-            else L.Brightness=1 L.GlobalShadows=true end
-        elseif f.key == "AutoDance" then
-            Settings.AutoDance = on
-            if on then
-                task.spawn(function()
-                    while Settings.AutoDance do
-                        if not isEmoting then playRandom() end
-                        task.wait(6)
-                    end
-                end)
-            else stopEmote() end
-        end
+        onToggle(on)
     end)
+
+    return state
 end
 
--- Info frame
+-- Buat toggle untuk setiap fitur
+makeToggleRow("⚡ Infinite Jump", true, function(on)
+    Settings.InfiniteJump = on
+    print((on and "✅" or "❌") .. " Infinite Jump")
+end)
+
+makeToggleRow("👻 NoClip", false, function(on)
+    Settings.NoClip = on
+    print((on and "✅" or "❌") .. " NoClip")
+end)
+
+makeToggleRow("💡 Bright Vision", false, function(on)
+    Settings.BrightVision = on
+    if on then
+        Lighting.Brightness = 5
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+    else
+        Lighting.Brightness = 1
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = true
+    end
+    print((on and "✅" or "❌") .. " Bright Vision")
+end)
+
+makeToggleRow("🎵 Auto Dance", false, function(on)
+    if on then startAutoDance() else stopAutoDance() end
+end)
+
+makeToggleRow("🏃 Sprint (Shift)", true, function(on)
+    Settings.Sprint = on
+    print((on and "✅" or "❌") .. " Sprint")
+end)
+
+makeToggleRow("🤖 Anti AFK", true, function(on)
+    print((on and "✅" or "❌") .. " Anti AFK")
+end)
+
+-- ===== INFO FRAME =====
 local infoFrame = Instance.new("Frame")
 infoFrame.Size = UDim2.new(1,0,1,0)
 infoFrame.BackgroundTransparency = 1
 infoFrame.Visible = false
 infoFrame.ZIndex = 101
 infoFrame.Parent = contentArea
+
 local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1,-8,1,0)
 infoLbl.Position = UDim2.new(0,6,0,4)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "⌨️ KEYBOARD\n\nE → Dance Random\nF → Stop Dance\nQ → NoClip ON/OFF\nShift → Sprint\nSpasi → Lompat\n\n🎭 16 Animasi Gratis\n100% Tanpa Beli\n\n✅ FITUR\nInfinite Jump | Anti AFK\nBright Vision | Sprint\nAuto Dance | NoClip"
+infoLbl.Text = "⌨️ KEYBOARD\n\nE  →  Dance Random\nF  →  Stop Dance\nQ  →  NoClip ON/OFF\nShift  →  Sprint\nSpasi  →  Lompat\n\n🎭 ANIMASI\n16 Animasi Gratis\n100% Tanpa Beli\n\n✅ FITUR\nInfinite Jump\nAnti AFK\nBright Vision\nSprint\nAuto Dance\nNoClip"
 infoLbl.TextColor3 = Color3.fromRGB(190,165,240)
-infoLbl.TextSize = 13
+infoLbl.TextSize = 12
 infoLbl.Font = Enum.Font.Gotham
 infoLbl.TextXAlignment = Enum.TextXAlignment.Left
 infoLbl.TextYAlignment = Enum.TextYAlignment.Top
@@ -385,7 +516,7 @@ infoLbl.TextWrapped = true
 infoLbl.ZIndex = 102
 infoLbl.Parent = infoFrame
 
--- Bottom bar
+-- ===== BOTTOM BAR =====
 local bottomBar = Instance.new("Frame")
 bottomBar.Size = UDim2.new(1,-14,0,34)
 bottomBar.Position = UDim2.new(0,7,1,-40)
@@ -409,7 +540,7 @@ local stopBtn = Instance.new("TextButton")
 stopBtn.Size = UDim2.new(0.42,-3,1,0)
 stopBtn.Position = UDim2.new(0.58,3,0,0)
 stopBtn.BackgroundColor3 = Color3.fromRGB(160,40,70)
-stopBtn.Text = "⏹ Stop"
+stopBtn.Text = "⏹ Stop Dance"
 stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
 stopBtn.TextSize = 11
 stopBtn.Font = Enum.Font.GothamBold
@@ -418,15 +549,36 @@ stopBtn.ZIndex = 101
 stopBtn.Parent = bottomBar
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
-randBtn.MouseButton1Click:Connect(function() playRandom() end)
-stopBtn.MouseButton1Click:Connect(function() stopEmote() end)
+randBtn.MouseButton1Click:Connect(function()
+    -- Reset active card
+    if activeCard then
+        TweenService:Create(activeCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
+        if activeStroke then activeStroke.Color = Color3.fromRGB(70,45,120) end
+        activeCard = nil
+        activeStroke = nil
+    end
+    playRandom()
+end)
 
--- Tab switch
+stopBtn.MouseButton1Click:Connect(function()
+    -- Reset active card
+    if activeCard then
+        TweenService:Create(activeCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
+        if activeStroke then activeStroke.Color = Color3.fromRGB(70,45,120) end
+        activeCard = nil
+        activeStroke = nil
+    end
+    stopAutoDance()
+    stopEmote()
+end)
+
+-- ===== TAB SWITCH =====
 local allTabs = {
     {btn=tabE, content=emoteScroll},
     {btn=tabF, content=fiturFrame},
     {btn=tabI, content=infoFrame},
 }
+
 local function switchTab(sel)
     for _, t in ipairs(allTabs) do
         local active = t.btn == sel.btn
@@ -437,51 +589,48 @@ local function switchTab(sel)
         }):Play()
     end
 end
+
 for _, t in ipairs(allTabs) do
     t.btn.MouseButton1Click:Connect(function() switchTab(t) end)
 end
 switchTab(allTabs[1])
 
--- ===== TOGGLE PANEL SIMPLE =====
--- Pakai variabel boolean sederhana
+-- ===== TOGGLE PANEL =====
 local panelOpen = false
 
 local function togglePanel()
     panelOpen = not panelOpen
-    if panelOpen then
-        panel.Visible = true
-        iconBtn.Text = "✕"
-        iconStroke.Color = Color3.fromRGB(255, 80, 80)
-    else
-        panel.Visible = false
-        iconBtn.Text = "🎭"
-        iconStroke.Color = Color3.fromRGB(140, 80, 255)
-    end
+    panel.Visible = panelOpen
+    iconBtn.Text = panelOpen and "✕" or "🎭"
+    iconStroke.Color = panelOpen and Color3.fromRGB(255,80,80) or Color3.fromRGB(140,80,255)
 end
 
--- Icon klik = toggle panel
-iconBtn.MouseButton1Click:Connect(function()
-    togglePanel()
-end)
-
--- Tombol X di header juga close
+iconBtn.MouseButton1Click:Connect(togglePanel)
 closeBtn.MouseButton1Click:Connect(function()
-    panelOpen = true
-    togglePanel()
+    if panelOpen then togglePanel() end
 end)
 
--- Keyboard
+-- ===== KEYBOARD =====
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.E then playRandom() end
-    if input.KeyCode == Enum.KeyCode.F then stopEmote() end
-    if input.KeyCode == Enum.KeyCode.Q then Settings.NoClip = not Settings.NoClip end
-    if input.KeyCode == Enum.KeyCode.LeftShift then humanoid.WalkSpeed = 50 end
+    if input.KeyCode == Enum.KeyCode.F then
+        stopAutoDance()
+        stopEmote()
+    end
+    if input.KeyCode == Enum.KeyCode.Q then
+        Settings.NoClip = not Settings.NoClip
+        print("🔁 NoClip: " .. (Settings.NoClip and "ON" or "OFF"))
+    end
+    if input.KeyCode == Enum.KeyCode.LeftShift and Settings.Sprint then
+        humanoid.WalkSpeed = 50
+    end
 end)
+
 UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.LeftShift then
         humanoid.WalkSpeed = Settings.WalkSpeed
     end
 end)
 
-print("✅ Siap! Klik icon 🎭 di kiri tengah layar untuk buka menu!")
+print("✅ Dance Party siap! Klik 🎭 di kiri tengah layar!")

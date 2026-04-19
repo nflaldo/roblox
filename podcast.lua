@@ -1,4 +1,4 @@
--- Script: Avatar Enhancement + Emote Menarik
+-- Script: Avatar Enhancement + Emote via AnimationId
 -- Jalankan via Executor (LocalScript)
 
 local Players = game:GetService("Players")
@@ -9,6 +9,7 @@ local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local animator = humanoid:WaitForChild("Animator")
 
 -- ===== PENGATURAN =====
 local Settings = {
@@ -20,51 +21,63 @@ local Settings = {
     BrightVision = true,
 }
 
--- ===== DAFTAR EMOTE MENARIK =====
+-- ===== DAFTAR EMOTE (Animation ID Roblox Official) =====
 local emotes = {
-    -- Dance
-    "dance",
-    "dance2", 
-    "dance3",
-    -- Ekspresi
-    "wave",
-    "cheer",
-    "laugh",
-    "shrug",
-    "idk",
-    -- Keren
-    "salute",
-    "point",
-    -- Tambahan Roblox Default
-    "tilt",
-    "smile",
-    "shocked",
-    "scared",
-    "agree",
-    "disagree",
-    "eyeroll",
-    "victory",
-    "clap",
-    "stampede",
+    {name = "Wave",        id = "rbxassetid://507770239"},
+    {name = "Cheer",       id = "rbxassetid://507770677"},
+    {name = "Laugh",       id = "rbxassetid://507770818"},
+    {name = "Dance",       id = "rbxassetid://507771019"},
+    {name = "Dance2",      id = "rbxassetid://507776043"},
+    {name = "Dance3",      id = "rbxassetid://507776048"},
+    {name = "Point",       id = "rbxassetid://507770453"},
+    {name = "Salute",      id = "rbxassetid://3544351430"},
+    {name = "Shrug",       id = "rbxassetid://3544203072"},
+    {name = "Tilt",        id = "rbxassetid://3544200075"},
+    {name = "Applaud",     id = "rbxassetid://5915693785"},
+    {name = "Head Spin",   id = "rbxassetid://5915812855"},
+    {name = "Victory",     id = "rbxassetid://4849487550"},
+    {name = "Breakdance",  id = "rbxassetid://3544419558"},
+    {name = "Flip",        id = "rbxassetid://4849501045"},
+    {name = "Air Guitar",  id = "rbxassetid://4849504141"},
+    {name = "Confused",    id = "rbxassetid://4849520943"},
+    {name = "Facepalm",    id = "rbxassetid://3544406036"},
+    {name = "Bow",         id = "rbxassetid://507770677"},
+    {name = "Tai Chi",     id = "rbxassetid://4849470700"},
 }
 
--- ===== FUNGSI EMOTE RANDOM =====
-local lastEmote = ""
-local function playRandomEmote()
-    local randomEmote
-    repeat
-        randomEmote = emotes[math.random(1, #emotes)]
-    until randomEmote ~= lastEmote -- tidak repeat emote yang sama
-    lastEmote = randomEmote
-    humanoid:PlayEmote(randomEmote)
-    print("🎭 Emote: " .. randomEmote)
+-- ===== FUNGSI PLAY EMOTE =====
+local currentTrack = nil
+local lastIndex = 0
+
+local function playEmote(emoteData)
+    if currentTrack then
+        currentTrack:Stop()
+        currentTrack = nil
+    end
+
+    local anim = Instance.new("Animation")
+    anim.AnimationId = emoteData.id
+
+    local track = animator:LoadAnimation(anim)
+    track.Priority = Enum.AnimationPriority.Action
+    track:Play()
+    currentTrack = track
+
+    print("🎭 Emote: " .. emoteData.name)
 end
 
--- ===== FUNGSI EMOTE SPESIFIK =====
+local function playRandomEmote()
+    local index
+    repeat
+        index = math.random(1, #emotes)
+    until index ~= lastIndex
+    lastIndex = index
+    playEmote(emotes[index])
+end
+
 local emoteIndex = 1
 local function playNextEmote()
-    humanoid:PlayEmote(emotes[emoteIndex])
-    print("🎭 Emote ke-" .. emoteIndex .. ": " .. emotes[emoteIndex])
+    playEmote(emotes[emoteIndex])
     emoteIndex = emoteIndex % #emotes + 1
 end
 
@@ -94,23 +107,27 @@ end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
 
-    -- E = Emote RANDOM
     if input.KeyCode == Enum.KeyCode.E then
         playRandomEmote()
     end
 
-    -- R = Emote URUT (next)
     if input.KeyCode == Enum.KeyCode.R then
         playNextEmote()
     end
 
-    -- Q = Toggle NoClip
+    if input.KeyCode == Enum.KeyCode.F then
+        if currentTrack then
+            currentTrack:Stop()
+            currentTrack = nil
+            print("⏹ Emote dihentikan")
+        end
+    end
+
     if input.KeyCode == Enum.KeyCode.Q then
         Settings.NoClip = not Settings.NoClip
         print("🔁 NoClip: " .. (Settings.NoClip and "ON" or "OFF"))
     end
 
-    -- Shift = Sprint
     if input.KeyCode == Enum.KeyCode.LeftShift then
         humanoid.WalkSpeed = 50
         print("🏃 Sprint ON")
@@ -161,6 +178,7 @@ print("=================================")
 print("✅ Semua fitur aktif!")
 print("📌 E     = Emote Random")
 print("📌 R     = Emote Urut")
-print("📌 Q     = Toggle NoClip")
+print("📌 F     = Stop Emote")
+print("📌 Q     = NoClip ON/OFF")
 print("📌 Shift = Sprint")
 print("=================================")

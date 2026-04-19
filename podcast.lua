@@ -1,4 +1,4 @@
--- Script: Avatar Enhancement + Dance Party/Club Animations
+-- Script: Dance Party - Animasi Gratis 100%
 -- Jalankan via Executor (LocalScript)
 
 local Players = game:GetService("Players")
@@ -21,39 +21,26 @@ local Settings = {
     BrightVision = true,
 }
 
--- ===== ANIMASI DANCE PARTY / CLUB =====
+-- ===== ANIMASI GRATIS ROBLOX DEFAULT =====
 local emotes = {
-    -- 🕺 DANCE PARTY UTAMA
-    {name = "Dance 1",          id = "rbxassetid://507771019"},
-    {name = "Dance 2",          id = "rbxassetid://507776043"},
-    {name = "Dance 3",          id = "rbxassetid://507776048"},
-    {name = "Breakdance",       id = "rbxassetid://3544419558"},
-    {name = "Head Spin",        id = "rbxassetid://5915812855"},
-    {name = "Shuffle",          id = "rbxassetid://4849498386"},
-    {name = "Robot Dance",      id = "rbxassetid://4849487550"},
-    {name = "Tai Chi Flow",     id = "rbxassetid://4849470700"},
-    {name = "Air Guitar",       id = "rbxassetid://4849504141"},
-    {name = "Twerk",            id = "rbxassetid://5915693785"},
-    {name = "Spin Move",        id = "rbxassetid://5915812855"},
-
-    -- 🔥 HYPE DANCE
-    {name = "Griddy",           id = "rbxassetid://7715333091"},
-    {name = "Floss",            id = "rbxassetid://6483715783"},
-    {name = "Orange Justice",   id = "rbxassetid://6483716757"},
-    {name = "Dab",              id = "rbxassetid://3360689775"},
-    {name = "Hype",             id = "rbxassetid://6483714503"},
-    {name = "Woah",             id = "rbxassetid://6483716457"},
-    {name = "Shoot Dance",      id = "rbxassetid://6483715456"},
-    {name = "Nae Nae",          id = "rbxassetid://6483716123"},
-    {name = "JuJu",             id = "rbxassetid://6483714789"},
-    {name = "Moonwalk",         id = "rbxassetid://4849470700"},
-
-    -- 💥 EKSPRESI CLUB
-    {name = "Cheer",            id = "rbxassetid://507770677"},
-    {name = "Victory",          id = "rbxassetid://4849487550"},
-    {name = "Wave",             id = "rbxassetid://507770239"},
-    {name = "Laugh",            id = "rbxassetid://507770818"},
-    {name = "Facepalm",         id = "rbxassetid://3544406036"},
+    {name = "Dance 1",      id = "rbxassetid://507771019"},
+    {name = "Dance 2",      id = "rbxassetid://507776043"},
+    {name = "Dance 3",      id = "rbxassetid://507776048"},
+    {name = "Wave",         id = "rbxassetid://507770239"},
+    {name = "Point",        id = "rbxassetid://507770453"},
+    {name = "Cheer",        id = "rbxassetid://507770677"},
+    {name = "Laugh",        id = "rbxassetid://507770818"},
+    {name = "Salute",       id = "rbxassetid://3544351430"},
+    {name = "Shrug",        id = "rbxassetid://3544203072"},
+    {name = "Tilt",         id = "rbxassetid://3544200075"},
+    {name = "Facepalm",     id = "rbxassetid://3544406036"},
+    {name = "Breakdance",   id = "rbxassetid://3544419558"},
+    {name = "Victory",      id = "rbxassetid://4849487550"},
+    {name = "Confused",     id = "rbxassetid://4849520943"},
+    {name = "Tai Chi",      id = "rbxassetid://4849470700"},
+    {name = "Air Guitar",   id = "rbxassetid://4849504141"},
+    {name = "Head Spin",    id = "rbxassetid://5915812855"},
+    {name = "Applaud",      id = "rbxassetid://5915693785"},
 }
 
 -- ===== FUNGSI PLAY EMOTE =====
@@ -101,22 +88,20 @@ local function playPrevEmote()
     emoteIndex = emoteIndex % #emotes + 1
 end
 
--- ===== AUTO DANCE MODE =====
+-- ===== AUTO DANCE =====
 local autoDance = false
-local autoDanceConnection = nil
 
 local function toggleAutoDance()
     autoDance = not autoDance
     if autoDance then
-        print("🎵 Auto Dance ON - ganti dance tiap 5 detik!")
-        autoDanceConnection = task.spawn(function()
+        print("🎵 Auto Dance ON!")
+        task.spawn(function()
             while autoDance do
                 playRandomEmote()
                 task.wait(5)
             end
         end)
     else
-        autoDance = false
         if currentTrack then
             currentTrack:Stop()
             currentTrack = nil
@@ -171,7 +156,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
     end
 
-    -- G = Auto Dance ON/OFF
     if input.KeyCode == Enum.KeyCode.G then
         toggleAutoDance()
     end

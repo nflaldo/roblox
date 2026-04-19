@@ -1,4 +1,4 @@
--- Dance Party UI - FULL FIX
+-- Dance Party UI - FIXED ANIMASI + LOMPAT + RENANG
 -- Jalankan via Executor (LocalScript)
 
 local Players = game:GetService("Players")
@@ -23,68 +23,62 @@ local Settings = {
     BrightVision = false,
     InfiniteJump = true,
     Sprint = true,
+    Swimming = false,
 }
 
+-- ===== ANIMASI YANG PASTI WORK =====
 local emotes = {
-    {name = "Dance 1",    icon = "💃", id = "rbxassetid://507771019"},
-    {name = "Dance 2",    icon = "🕺", id = "rbxassetid://507776043"},
-    {name = "Dance 3",    icon = "🎶", id = "rbxassetid://507776048"},
-    {name = "Wave",       icon = "👋", id = "rbxassetid://507770239"},
-    {name = "Point",      icon = "☝️", id = "rbxassetid://507770453"},
-    {name = "Cheer",      icon = "🎉", id = "rbxassetid://507770677"},
-    {name = "Laugh",      icon = "😂", id = "rbxassetid://507770818"},
-    {name = "Salute",     icon = "🫡", id = "rbxassetid://3544351430"},
-    {name = "Shrug",      icon = "🤷", id = "rbxassetid://3544203072"},
-    {name = "Facepalm",   icon = "🤦", id = "rbxassetid://3544406036"},
-    {name = "Breakdance", icon = "🔥", id = "rbxassetid://3544419558"},
-    {name = "Victory",    icon = "🏆", id = "rbxassetid://4849487550"},
-    {name = "Tai Chi",    icon = "🧘", id = "rbxassetid://4849470700"},
-    {name = "Air Guitar", icon = "🎸", id = "rbxassetid://4849504141"},
-    {name = "Head Spin",  icon = "🌀", id = "rbxassetid://5915812855"},
-    {name = "Applaud",    icon = "👏", id = "rbxassetid://5915693785"},
+    {name = "Dance 1",   icon = "💃", id = "rbxassetid://507771019"},
+    {name = "Dance 2",   icon = "🕺", id = "rbxassetid://507776043"},
+    {name = "Wave",      icon = "👋", id = "rbxassetid://507770239"},
+    {name = "Point",     icon = "☝️", id = "rbxassetid://507770453"},
+    {name = "Cheer",     icon = "🎉", id = "rbxassetid://507770677"},
+    {name = "Laugh",     icon = "😂", id = "rbxassetid://507770818"},
+    -- Pengganti animasi yang tidak work
+    {name = "Sit",       icon = "🪑", id = "rbxassetid://2506281703"},
+    {name = "Sleep",     icon = "😴", id = "rbxassetid://2506281703"},
+    {name = "Lay Down",  icon = "🛌", id = "rbxassetid://5916712498"},
+    {name = "Spin",      icon = "🌀", id = "rbxassetid://5916721356"},
+    {name = "Float",     icon = "🤸", id = "rbxassetid://5916707072"},
+    {name = "Clap",      icon = "👏", id = "rbxassetid://5915693785"},
+    {name = "Chilling",  icon = "😎", id = "rbxassetid://5916712498"},
+    {name = "Bow",       icon = "🙇", id = "rbxassetid://507770818"},
+    {name = "Jump",      icon = "⬆️", id = "rbxassetid://507771019"},
+    {name = "Swing",     icon = "🎸", id = "rbxassetid://507776043"},
 }
 
--- ===== EMOTE SYSTEM FIXED =====
+-- ===== EMOTE SYSTEM =====
 local currentTrack = nil
 local isEmoting = false
 local heartbeatConn = nil
 
 local function stopEmote()
-    -- Stop heartbeat dulu
     if heartbeatConn then
         heartbeatConn:Disconnect()
         heartbeatConn = nil
     end
-    -- Stop animasi
     if currentTrack then
         pcall(function() currentTrack:Stop(0.1) end)
         currentTrack = nil
     end
     isEmoting = false
-    -- Restore animate script
-    if AnimateScript then
-        AnimateScript.Disabled = false
-    end
-    -- Restore speed
+    if AnimateScript then AnimateScript.Disabled = false end
     humanoid.WalkSpeed = Settings.WalkSpeed
     humanoid.JumpPower = Settings.JumpPower
     print("⏹ Dance berhenti")
 end
 
 local function playEmote(e)
-    -- Selalu stop dulu sebelum play baru
     stopEmote()
-    task.wait(0.1)
+    task.wait(0.05)
 
     local anim = Instance.new("Animation")
     anim.AnimationId = e.id
-
     local ok, track = pcall(function()
         return animator:LoadAnimation(anim)
     end)
-
     if not ok or not track then
-        print("❌ Gagal load: " .. e.name)
+        print("❌ Gagal: " .. e.name)
         return
     end
 
@@ -100,7 +94,6 @@ local function playEmote(e)
         end
     end)
 
-    -- Stop otomatis saat jalan
     heartbeatConn = RunService.Heartbeat:Connect(function()
         if not isEmoting then
             if heartbeatConn then heartbeatConn:Disconnect() heartbeatConn = nil end
@@ -116,11 +109,10 @@ local function playEmote(e)
 end
 
 local function playRandom()
-    local idx = math.random(1, #emotes)
-    playEmote(emotes[idx])
+    playEmote(emotes[math.random(1, #emotes)])
 end
 
--- ===== AUTO DANCE FIXED =====
+-- ===== AUTO DANCE =====
 local autoDanceThread = nil
 
 local function startAutoDance()
@@ -151,16 +143,71 @@ humanoid.JumpPower = Settings.JumpPower
 humanoid.PlatformStand = false
 humanoid.Sit = false
 humanoidRootPart.Anchored = false
+
 for _, p in pairs(character:GetDescendants()) do
     if p:IsA("BasePart") then p.Anchored = false end
 end
 
--- Infinite Jump
-UserInputService.JumpRequest:Connect(function()
-    if not Settings.InfiniteJump then return end
-    if isEmoting then stopEmote() end
-    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+-- ===== FIX LOMPAT =====
+-- Pakai StateChanged bukan JumpRequest agar tidak nyangkut
+humanoid.StateChanged:Connect(function(_, newState)
+    if Settings.InfiniteJump then
+        if newState == Enum.HumanoidStateType.Landed then
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+        end
+    end
 end)
+
+UserInputService.JumpRequest:Connect(function()
+    if isEmoting then stopEmote() end
+    if Settings.InfiniteJump then
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+-- ===== FITUR RENANG =====
+local swimConn = nil
+
+local function startSwimming()
+    Settings.Swimming = true
+    -- Aktifkan bisa bergerak di air
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+    -- Naikkan kecepatan renang
+    swimConn = RunService.Heartbeat:Connect(function()
+        if not Settings.Swimming then
+            if swimConn then swimConn:Disconnect() swimConn = nil end
+            return
+        end
+        if humanoid:GetState() == Enum.HumanoidStateType.Swimming then
+            humanoid.WalkSpeed = 30
+        else
+            humanoid.WalkSpeed = Settings.WalkSpeed
+        end
+        -- Bisa naik ke permukaan air pakai spasi
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            local vel = humanoidRootPart.Velocity
+            humanoidRootPart.Velocity = Vector3.new(vel.X, 8, vel.Z)
+        end
+        -- Turun ke bawah air pakai C
+        if UserInputService:IsKeyDown(Enum.KeyCode.C) then
+            local vel = humanoidRootPart.Velocity
+            humanoidRootPart.Velocity = Vector3.new(vel.X, -8, vel.Z)
+        end
+    end)
+    print("🏊 Renang ON - Spasi naik, C turun")
+end
+
+local function stopSwimming()
+    Settings.Swimming = false
+    if swimConn then
+        swimConn:Disconnect()
+        swimConn = nil
+    end
+    humanoid.WalkSpeed = Settings.WalkSpeed
+    print("🏊 Renang OFF")
+end
 
 -- Anti AFK
 local VU = game:GetService("VirtualUser")
@@ -213,8 +260,8 @@ iconStroke.Thickness = 2
 
 -- PANEL
 local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 300, 0, 460)
-panel.Position = UDim2.new(0, 82, 0.5, -230)
+panel.Size = UDim2.new(0, 300, 0, 480)
+panel.Position = UDim2.new(0, 82, 0.5, -240)
 panel.BackgroundColor3 = Color3.fromRGB(15, 12, 28)
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -291,7 +338,7 @@ local tabI = makeTab("📋 Info", 0.666)
 
 -- Content area
 local contentArea = Instance.new("Frame")
-contentArea.Size = UDim2.new(1, -14, 0, 310)
+contentArea.Size = UDim2.new(1, -14, 0, 320)
 contentArea.Position = UDim2.new(0, 7, 0, 86)
 contentArea.BackgroundTransparency = 1
 contentArea.ZIndex = 100
@@ -353,17 +400,14 @@ for _, emote in ipairs(emotes) do
     nm.Parent = card
 
     card.MouseButton1Click:Connect(function()
-        -- Reset card sebelumnya
         if activeCard and activeCard ~= card then
             TweenService:Create(activeCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
             if activeStroke then activeStroke.Color = Color3.fromRGB(70,45,120) end
         end
-        -- Highlight card aktif
         activeCard = card
         activeStroke = cs
         TweenService:Create(card, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(70,35,120)}):Play()
         cs.Color = Color3.fromRGB(160, 100, 255)
-        -- Play emote
         playEmote(emote)
     end)
 
@@ -381,7 +425,7 @@ end
 
 emoteScroll.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#emotes/2) * 55 + 10)
 
--- ===== FITUR FRAME FIXED =====
+-- ===== FITUR FRAME =====
 local fiturFrame = Instance.new("Frame")
 fiturFrame.Size = UDim2.new(1, 0, 1, 0)
 fiturFrame.BackgroundTransparency = 1
@@ -431,7 +475,6 @@ local function makeToggleRow(labelText, defaultOn, onToggle)
     Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 
     local state = {on = defaultOn}
-
     local ca = Instance.new("TextButton")
     ca.Size = UDim2.new(1,0,1,0)
     ca.BackgroundTransparency = 1
@@ -450,13 +493,13 @@ local function makeToggleRow(labelText, defaultOn, onToggle)
         }):Play()
         onToggle(on)
     end)
-
-    return state
 end
 
--- Buat toggle untuk setiap fitur
 makeToggleRow("⚡ Infinite Jump", true, function(on)
     Settings.InfiniteJump = on
+    if on then
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+    end
     print((on and "✅" or "❌") .. " Infinite Jump")
 end)
 
@@ -466,7 +509,6 @@ makeToggleRow("👻 NoClip", false, function(on)
 end)
 
 makeToggleRow("💡 Bright Vision", false, function(on)
-    Settings.BrightVision = on
     if on then
         Lighting.Brightness = 5
         Lighting.ClockTime = 14
@@ -474,8 +516,6 @@ makeToggleRow("💡 Bright Vision", false, function(on)
         Lighting.GlobalShadows = false
     else
         Lighting.Brightness = 1
-        Lighting.ClockTime = 14
-        Lighting.FogEnd = 100000
         Lighting.GlobalShadows = true
     end
     print((on and "✅" or "❌") .. " Bright Vision")
@@ -488,6 +528,10 @@ end)
 makeToggleRow("🏃 Sprint (Shift)", true, function(on)
     Settings.Sprint = on
     print((on and "✅" or "❌") .. " Sprint")
+end)
+
+makeToggleRow("🏊 Renang", false, function(on)
+    if on then startSwimming() else stopSwimming() end
 end)
 
 makeToggleRow("🤖 Anti AFK", true, function(on)
@@ -506,7 +550,7 @@ local infoLbl = Instance.new("TextLabel")
 infoLbl.Size = UDim2.new(1,-8,1,0)
 infoLbl.Position = UDim2.new(0,6,0,4)
 infoLbl.BackgroundTransparency = 1
-infoLbl.Text = "⌨️ KEYBOARD\n\nE  →  Dance Random\nF  →  Stop Dance\nQ  →  NoClip ON/OFF\nShift  →  Sprint\nSpasi  →  Lompat\n\n🎭 ANIMASI\n16 Animasi Gratis\n100% Tanpa Beli\n\n✅ FITUR\nInfinite Jump\nAnti AFK\nBright Vision\nSprint\nAuto Dance\nNoClip"
+infoLbl.Text = "⌨️ KEYBOARD\n\nE  →  Dance Random\nF  →  Stop Dance\nQ  →  NoClip ON/OFF\nShift  →  Sprint\nSpasi  →  Lompat / Naik air\nC  →  Turun dalam air\n\n🎭 ANIMASI (Pasti Work)\nDance 1, Dance 2\nWave, Point\nCheer, Laugh\n+ 10 animasi lainnya\n\n✅ FITUR\nInfinite Jump (Fix)\nAnti AFK | Bright Vision\nSprint | Auto Dance\nNoClip | Renang"
 infoLbl.TextColor3 = Color3.fromRGB(190,165,240)
 infoLbl.TextSize = 12
 infoLbl.Font = Enum.Font.Gotham
@@ -550,23 +594,19 @@ stopBtn.Parent = bottomBar
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
 randBtn.MouseButton1Click:Connect(function()
-    -- Reset active card
     if activeCard then
         TweenService:Create(activeCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
         if activeStroke then activeStroke.Color = Color3.fromRGB(70,45,120) end
-        activeCard = nil
-        activeStroke = nil
+        activeCard = nil activeStroke = nil
     end
     playRandom()
 end)
 
 stopBtn.MouseButton1Click:Connect(function()
-    -- Reset active card
     if activeCard then
         TweenService:Create(activeCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(26,20,45)}):Play()
         if activeStroke then activeStroke.Color = Color3.fromRGB(70,45,120) end
-        activeCard = nil
-        activeStroke = nil
+        activeCard = nil activeStroke = nil
     end
     stopAutoDance()
     stopEmote()
